@@ -4,6 +4,7 @@ from src.data import load_mnist, split_iid
 from src.model import MNISTModel
 from src.client import train_client
 from src.aggregation import fedavg
+from src.evaluate import evaluate
 
 
 def main():
@@ -42,10 +43,12 @@ def main():
         local_models.append(local_model)
         client_sizes.append(len(client_dataset))
 
-    global_model = fedavg(                                      # Aggregate all local models using FedAvg
-        local_models=local_models,
-        client_sizes=client_sizes
-    )
+    global_model = fedavg(local_models=local_models, client_sizes=client_sizes)  # Aggregate the local models to form a new global model
+
+    
+    accuracy = evaluate(model=global_model, dataset=test_dataset)               # Evaluate the new global model
+
+    print(f"\nGlobal model accuracy: {accuracy * 100:.2f}%")
 
     print("\nFederated round completed.")
 
