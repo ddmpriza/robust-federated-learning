@@ -8,49 +8,50 @@ from src.evaluate import evaluate
 
 
 def main():
-
-    # Load MNIST
-    train_dataset, test_dataset = load_mnist()
-
-    # Split training data across clients
+    # Experiment settings
     num_clients = 10
-    client_datasets = split_iid(
-        train_dataset,
-        num_clients=num_clients
-    )
+    num_rounds = 10
+    local_epochs = 3
+    batch_size = 32
+    learning_rate = 0.01
 
-    # Create the initial global model
-    global_model = MNISTModel()
+    train_dataset, test_dataset = load_mnist()                              # Load MNIST
 
-    # Store the locally trained models
-    local_models = []
-    client_sizes = []
+    client_datasets = split_iid(train_dataset, num_clients=num_clients)     # Split training data across clients
 
-    # Train each client independently
-    for client_id, client_dataset in enumerate(client_datasets):
-        print(f"\nTraining Client {client_id + 1}/{num_clients}")
+    global_model = MNISTModel()                                             # Create the initial global model
+
+    # Federated training
+    for round_id in range(num_rounds):
+
+        print(f"\nFederated Round {round_id + 1}/{num_rounds}")
+
+        local_models = []                                                           # Store the locally trained models
+        client_sizes = []
         
-        local_model = copy.deepcopy(global_model)               # Every client starts from the same global model
+        for client_id, client_dataset in enumerate(client_datasets):                # Train each client independently
+            print(f"\nTraining Client {client_id + 1}/{num_clients}")
+            
+            local_model = copy.deepcopy(global_model)                               # Every client starts from the same global model
 
-        local_model = train_client(                             # Local training
-            model=local_model,
-            dataset=client_dataset,
-            epochs=3,
-            batch_size=32,
-            learning_rate=0.01
-        )
+            local_model = train_client(                                             # Local training
+                model=local_model,
+                dataset=client_dataset,
+                epochs=local_epochs,
+                batch_size=batch_size,
+                learning_rate=learning_rate
+            )
 
-        local_models.append(local_model)
-        client_sizes.append(len(client_dataset))
+            local_models.append(local_model)
+            client_sizes.append(len(client_dataset))
 
-    global_model = fedavg(local_models=local_models, client_sizes=client_sizes)  # Aggregate the local models to form a new global model
+        global_model = fedavg(local_models=local_models, client_sizes=client_sizes)     # Aggregate the local models to form a new global model
 
-    
-    accuracy = evaluate(model=global_model, dataset=test_dataset)               # Evaluate the new global model
+        accuracy = evaluate(model=global_model, dataset=test_dataset)                   # Evaluate the new global model
 
-    print(f"\nGlobal model accuracy: {accuracy * 100:.2f}%")
+        print(f"\nGlobal model accuracy: {accuracy * 100:.2f}%")
 
-    print("\nFederated round completed.")
+        print("\nFederated round completed.")
 
 
 if __name__ == "__main__":
