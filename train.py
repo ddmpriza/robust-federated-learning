@@ -1,4 +1,6 @@
 import copy
+import random
+import torch
 
 from src.data import load_mnist, split_iid
 from src.model import MNISTModel
@@ -9,17 +11,24 @@ from src.evaluate import evaluate
 
 def main():
     # Experiment settings
+    seed = 42
     num_clients = 10
     num_rounds = 10
     local_epochs = 3
     batch_size = 32
     learning_rate = 0.01
 
+    # Reproducibility
+    random.seed(seed)
+    torch.manual_seed(seed)
+
     train_dataset, test_dataset = load_mnist()                              # Load MNIST
 
     client_datasets = split_iid(train_dataset, num_clients=num_clients)     # Split training data across clients
 
-    global_model = MNISTModel()                                             # Create the initial global model
+    global_model = MNISTModel()   
+                                              # Create the initial global model
+    accuracy_history = []
 
     # Federated training
     for round_id in range(num_rounds):
@@ -48,6 +57,7 @@ def main():
         global_model = fedavg(local_models=local_models, client_sizes=client_sizes)     # Aggregate the local models to form a new global model
 
         accuracy = evaluate(model=global_model, dataset=test_dataset)                   # Evaluate the new global model
+        accuracy_history.append(accuracy)
 
         print(f"\nGlobal model accuracy: {accuracy * 100:.2f}%")
 
