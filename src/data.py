@@ -1,4 +1,5 @@
-from torch.utils.data import random_split
+import numpy as np
+from torch.utils.data import Subset, random_split
 from torchvision import datasets, transforms
 
 # Load the MNIST training and test datasets
@@ -33,21 +34,22 @@ def split_iid(dataset, num_clients):
 
     return client_datasets
 
-if __name__ == "__main__":
+# Split a dataset into non-IID subsets for each client using Dirichlet distribution
+def split_non_iid(dataset, num_clients, alpha=0.5):
+    labels = np.array(dataset.targets)
+    for digit in range(10):
+        class_indices = np.where(labels == digit)[0]                # Count the number of samples for each digit
+        proportions = np.random.dirichlet([alpha] * num_clients)    # Calculate the proportions for each client using Dirichlet distribution
+        client_indices = [[] for i in range(num_clients)]           # Create a list to hold the indices for each client
+        split_points = (np.cumsum(proportions)[:-1] * len(class_indices)).astype(int)    # Calculate the split points for each client based on the proportions
+                                                                                         # cumsum: Calculate where to split the samples based on cumulative proportions
+        class_splits = np.split(class_indices, split_points)        # Split the indices for each digit into subsets for each client
+        for client_id, indices in enumerate(class_splits):
+            client_indices[client_id].extend(indices.tolist())      # Add the assigned samples to each client
 
-    train_dataset, test_dataset = load_mnist()
+        
+    client_datasets = [Subset(dataset, indices)                     # Create a dataset subset for each client
+        for indices in client_indices
+    ]
 
-    print("Training samples:", len(train_dataset))
-    print("Test samples:", len(test_dataset))
-
-    num_clients = 10
-
-    client_datasets = split_iid(
-        train_dataset,
-        num_clients
-    )
-
-    print("\nNumber of clients:", len(client_datasets))
-
-    for i, client_dataset in enumerate(client_datasets):
-        print(f"Client {i}: {len(client_dataset)} samples")
+    return client_datasets
