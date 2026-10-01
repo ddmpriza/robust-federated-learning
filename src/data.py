@@ -42,8 +42,7 @@ def split_non_iid(dataset, num_clients, alpha=0.5):
         class_indices = np.where(labels == digit)[0]                # Count the number of samples for each digit
         proportions = np.random.dirichlet([alpha] * num_clients)    # Calculate the proportions for each client using Dirichlet distribution
         split_points = (np.cumsum(proportions)[:-1] * len(class_indices)).astype(int)    # Calculate the split points for each client based on the proportions
-                                                                                         # cumsum: Calculate where to split the samples based on cumulative proportions
-        class_splits = np.split(class_indices, split_points)        # Split the indices for each digit into subsets for each client
+        class_splits = np.split(class_indices, split_points)        # Split the digit samples among clients
         for client_id, indices in enumerate(class_splits):
             client_indices[client_id].extend(indices.tolist())      # Add the assigned samples to each client
 

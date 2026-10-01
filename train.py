@@ -17,6 +17,8 @@ def main():
     local_epochs = 3
     batch_size = 32
     learning_rate = 0.01
+    data_distribution = "non_iid"
+    dirichlet_alpha = 0.5
 
     # Reproducibility
     random.seed(seed)
@@ -24,7 +26,11 @@ def main():
 
     train_dataset, test_dataset = load_mnist()                              # Load MNIST
 
-    client_datasets = split_non_iid(train_dataset, num_clients=num_clients, alpha=0.5)     # Split training data across clients
+    if data_distribution == "non_iid":
+        client_datasets = split_non_iid(train_dataset, num_clients=num_clients, alpha=dirichlet_alpha)
+    else:
+        client_datasets = split_iid(train_dataset, num_clients=num_clients)
+
     for client_id, client_dataset in enumerate(client_datasets):
         distribution = get_label_distribution(client_dataset)
 
