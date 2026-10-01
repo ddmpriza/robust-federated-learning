@@ -37,10 +37,10 @@ def split_iid(dataset, num_clients):
 # Split a dataset into non-IID subsets for each client using Dirichlet distribution
 def split_non_iid(dataset, num_clients, alpha=0.5):
     labels = np.array(dataset.targets)
+    client_indices = [[] for client_id in range(num_clients)]       # Create a list to hold the indices for each client
     for digit in range(10):
         class_indices = np.where(labels == digit)[0]                # Count the number of samples for each digit
         proportions = np.random.dirichlet([alpha] * num_clients)    # Calculate the proportions for each client using Dirichlet distribution
-        client_indices = [[] for i in range(num_clients)]           # Create a list to hold the indices for each client
         split_points = (np.cumsum(proportions)[:-1] * len(class_indices)).astype(int)    # Calculate the split points for each client based on the proportions
                                                                                          # cumsum: Calculate where to split the samples based on cumulative proportions
         class_splits = np.split(class_indices, split_points)        # Split the indices for each digit into subsets for each client
@@ -53,3 +53,11 @@ def split_non_iid(dataset, num_clients, alpha=0.5):
     ]
 
     return client_datasets
+
+def get_label_distribution(client_dataset):
+    distribution = [0] * 10
+
+    for _, label in client_dataset:
+        distribution[label] += 1
+
+    return distribution

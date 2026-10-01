@@ -2,7 +2,7 @@ import copy
 import random
 import torch
 
-from src.data import load_mnist, split_iid, split_non_iid
+from src.data import load_mnist, split_iid, split_non_iid, get_label_distribution
 from src.model import MNISTModel
 from src.client import train_client
 from src.aggregation import fedavg
@@ -24,7 +24,15 @@ def main():
 
     train_dataset, test_dataset = load_mnist()                              # Load MNIST
 
-    client_datasets = split_non_iid(train_dataset, num_clients=num_clients)     # Split training data across clients
+    client_datasets = split_non_iid(train_dataset, num_clients=num_clients, alpha=0.5)     # Split training data across clients
+    for client_id, client_dataset in enumerate(client_datasets):
+        distribution = get_label_distribution(client_dataset)
+
+        print(
+            f"Client {client_id + 1}: "
+            f"{len(client_dataset)} samples - "
+            f"{distribution}"
+        )
 
     global_model = MNISTModel()   
                                               # Create the initial global model
