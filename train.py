@@ -1,6 +1,7 @@
 import copy
 import random
 import torch
+import numpy as np
 
 from src.data import load_mnist, split_iid, split_non_iid, get_label_distribution
 from src.model import MNISTModel
@@ -21,8 +22,9 @@ def main():
     dirichlet_alpha = 0.5
 
     # Reproducibility
-    random.seed(seed)
-    torch.manual_seed(seed)
+    random.seed(seed)           # Python randomness
+    np.random.seed(seed)        # Dirichlet distribution randomness
+    torch.manual_seed(seed)     # PyTorch randomness
 
     train_dataset, test_dataset = load_mnist()                              # Load MNIST
 
