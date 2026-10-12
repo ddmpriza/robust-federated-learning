@@ -18,7 +18,7 @@ def main():
     local_epochs = 3
     batch_size = 32
     learning_rate = 0.01
-    data_distribution = "non_iid"
+    data_distribution = "non_iid"  # Options: "iid" or "non_iid"
     dirichlet_alpha = 0.5
 
     # Reproducibility
@@ -78,6 +78,12 @@ def main():
         print(f"\nGlobal model accuracy: {accuracy * 100:.2f}%")
 
         print("\nFederated round completed.")
+
+    print("\nTraining completed.")
+    print("Accuracy history:")
+
+    for round_id, accuracy in enumerate(accuracy_history):
+        print(f"Round {round_id + 1}: {accuracy * 100:.2f}%")
 
 
 if __name__ == "__main__":
