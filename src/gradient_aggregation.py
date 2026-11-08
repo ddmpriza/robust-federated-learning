@@ -44,10 +44,42 @@ def apply_gradient(model, gradient, learning_rate):
             num_elements = param.numel()                    # Get the total number of elements in the current parameter tensor
 
             # Extract the corresponding slice of the flattened gradient tensor for the current parameter
-            param_gradient = gradient[offset:offset + num_elements].reshape(param.shape)
+            param_gradient = gradient[offset:offset + num_elements].reshape(param.shape) # reshape the slice to match the shape of the current parameter tensor
 
             param.sub_(learning_rate * param_gradient)      # Update the parameter in place by subtracting the scaled gradient (learning_rate * param_gradient) from the current parameter value
 
             offset += num_elements
 
     return model
+
+# Approximate the geometric median using Weiszfeld iterations.
+def geometric_median(gradients, max_iter=100, tol=1e-6, eps=1e-8):
+    if gradients.ndim != 2:
+        raise ValueError("Expected a 2D tensor of client gradients.")
+
+    if gradients.shape[0] == 0:
+        raise ValueError("At least one client gradient is required.")
+
+    if not torch.isfinite(gradients).all():
+        raise ValueError("Client gradients must be finite.")
+
+    center = gradients.mean(dim=0)                      # Initialize with the arithmetic mean
+
+    for i in range(max_iter):
+        # Euclidean distance from each client gradient to the center
+        distances = torch.linalg.vector_norm(gradients - center, dim=1)     # Subtracts the center from each client gradient, via broadcasting
+                                                                            # Vector_norm computes the Euclidean norm (L2 norm) along the specified dimension (dim=1), 
+                                                                            # resulting in a 1D tensor of distances from each client gradient to the current center
+
+        weights = 1.0 / distances.clamp_min(eps)        # Avoid division by zero
+
+        # Compute the new weighted center
+        new_center = (gradients * weights.unsqueeze(1)).sum(dim=0) / weights.sum()
+
+        # Check convergence
+        if torch.linalg.vector_norm(new_center - center) < tol:
+            return new_center
+
+        center = new_center
+
+    return center
