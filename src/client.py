@@ -40,3 +40,36 @@ def train_client(model, dataset, epochs=1, batch_size=32, learning_rate=0.01):
         print(f"Epoch {epoch + 1}/{epochs} - Loss: {average_loss:.4f}")
 
     return model
+
+def compute_client_gradient(model, dataset, batch_size=32):
+    """Compute the average gradient over a client's dataset."""
+
+    if len(dataset) == 0:
+        raise ValueError("Client dataset must not be empty.")
+
+    model.eval()
+    criterion = torch.nn.CrossEntropyLoss(reduction="sum")
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+    parameters = list(model.parameters())
+    gradient_sums = [torch.zeros_like(p) for p in parameters]
+
+    for images, labels in loader:
+        images = images.to(parameters[0].device)
+        labels = labels.to(parameters[0].device)
+
+        model.zero_grad(set_to_none=True)
+
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+        loss.backward()
+
+        for total, param in zip(gradient_sums, parameters):
+            total.add_(param.grad.detach())
+
+    mean_gradients = [
+        total / len(dataset)
+        for total in gradient_sums
+    ]
+
+    return torch.cat([g.reshape(-1) for g in mean_gradients])
