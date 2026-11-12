@@ -82,9 +82,20 @@ def test_single_gradient():
     assert torch.allclose(median, expected, atol=1e-6)
     print("Single gradient test passed!")
 
+def test_high_dimensional_gradients():
+    gradients = torch.randn(5, 101770)
+
+    median = geometric_median(gradients)
+
+    assert median.shape == (101770,)
+    assert torch.isfinite(median).all()
+
+    print("High-dimensional gradients test passed!")
+
 if __name__ == "__main__":
     test_outlier_gradient()
     test_identical_gradients()
     test_two_identical_gradients()
     test_initial_center_matches_gradient()
     test_single_gradient()
+    test_high_dimensional_gradients()

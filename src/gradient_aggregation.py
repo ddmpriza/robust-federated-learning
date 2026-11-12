@@ -106,3 +106,70 @@ def geometric_median(gradients, max_iter=100, tol=1e-8, eps=1e-8):
         center = new_center
 
     return center
+
+
+
+def huber_aggregation(gradients, client_sizes, thresholds,
+                      max_iter=100, tol=1e-6, eps=1e-8):
+
+    if gradients.ndim != 2:
+        raise ValueError("Expected a 2D tensor of client gradients.")
+
+    if gradients.shape[0] == 0:
+        raise ValueError("At least one client gradient is required.")
+
+    if not torch.isfinite(gradients).all():
+        raise ValueError("Client gradients must be finite.")
+
+    client_sizes = torch.as_tensor(
+        client_sizes, device=gradients.device, dtype=gradients.dtype
+    )
+
+    thresholds = torch.as_tensor(
+        thresholds, device=gradients.device, dtype=gradients.dtype
+    )
+
+    if client_sizes.ndim != 1 or client_sizes.numel() != gradients.shape[0]:
+        raise ValueError("One client size is required per gradient.")
+
+    if thresholds.ndim == 0:
+        thresholds = thresholds.expand(gradients.shape[0])
+
+    if thresholds.ndim != 1 or thresholds.numel() != gradients.shape[0]:
+        raise ValueError("One threshold is required per gradient.")
+
+    if not torch.isfinite(client_sizes).all() or (client_sizes <= 0).any():
+        raise ValueError("Client sizes must be finite and positive.")
+
+    if not torch.isfinite(thresholds).all() or (thresholds <= 0).any():
+        raise ValueError("Thresholds must be finite and positive.")
+
+    center = (
+        gradients * client_sizes.unsqueeze(1)
+    ).sum(dim=0) / client_sizes.sum()
+
+    for iteration in range(max_iter):
+
+        distances = torch.linalg.vector_norm(
+            gradients - center, dim=1
+        )
+
+        safe_distances = distances.clamp_min(eps)
+
+        huber_weights = torch.minimum(
+            torch.ones_like(distances),
+            thresholds / safe_distances
+        )
+
+        weights = client_sizes * huber_weights
+
+        new_center = (
+            gradients * weights.unsqueeze(1)
+        ).sum(dim=0) / weights.sum()
+
+        if torch.linalg.vector_norm(new_center - center) < tol:
+            return new_center
+
+        center = new_center
+
+    return center
