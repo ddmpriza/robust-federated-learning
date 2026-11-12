@@ -53,7 +53,7 @@ def apply_gradient(model, gradient, learning_rate):
     return model
 
 # Approximate the geometric median using Weiszfeld iterations.
-def geometric_median(gradients, max_iter=100, tol=1e-6, eps=1e-8):
+def geometric_median(gradients, max_iter=100, tol=1e-8, eps=1e-8):
     if gradients.ndim != 2:
         raise ValueError("Expected a 2D tensor of client gradients.")
 
@@ -71,10 +71,33 @@ def geometric_median(gradients, max_iter=100, tol=1e-6, eps=1e-8):
                                                                             # Vector_norm computes the Euclidean norm (L2 norm) along the specified dimension (dim=1), 
                                                                             # resulting in a 1D tensor of distances from each client gradient to the current center
 
-        weights = 1.0 / distances.clamp_min(eps)        # Avoid division by zero
+        zero_mask = distances <= eps                    # Identify gradients that coincide with the center
 
-        # Compute the new weighted center
-        new_center = (gradients * weights.unsqueeze(1)).sum(dim=0) / weights.sum()
+        r = zero_mask.sum().item()                      # Count the coinciding gradients
+
+        nonzero_gradients = gradients[~zero_mask]       # Keep only gradients that do not coincide with the center
+        nonzero_distances = distances[~zero_mask]
+
+        if nonzero_gradients.shape[0] == 0:             # If all gradients coincide with the center, return it
+            return center
+
+        # Calculate the resultant direction
+        directions = (nonzero_gradients - center) / nonzero_distances.unsqueeze(1)
+
+        R = directions.sum(dim=0)
+
+        gamma = torch.linalg.vector_norm(R).item()
+
+        if gamma <= r:                                  # Check whether the current center is already optimal
+            return center
+
+        weights = 1.0 / nonzero_distances               # Calculate the standard Weiszfeld update
+
+        T = (nonzero_gradients * weights.unsqueeze(1)).sum(dim=0) / weights.sum()
+
+        alpha = r / gamma                               # Calculate the correction factor
+
+        new_center = alpha * center + (1 - alpha) * T   # Apply the modified Weiszfeld update
 
         # Check convergence
         if torch.linalg.vector_norm(new_center - center) < tol:
