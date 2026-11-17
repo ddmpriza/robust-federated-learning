@@ -2,6 +2,7 @@
 import pytest
 import torch
 from src.gradient_aggregation import huber_aggregation_paper
+from src.gradient_aggregation import huber_aggregation
 
 
 def test_huber_reduces_outlier_influence():
@@ -103,3 +104,89 @@ def test_invalid_threshold():
 
     with pytest.raises(ValueError):
         huber_aggregation_paper(gradients, thresholds)
+
+
+def test_compare_paper_and_weighted_huber():
+    gradients = torch.tensor([
+        [2.0, 0.0],
+        [4.0, 0.0],
+        [100.0, 0.0]
+    ])
+
+    client_sizes = torch.tensor([100.0, 100.0, 800.0])
+    thresholds = torch.tensor([10.0, 10.0, 10.0])
+
+    paper_result = huber_aggregation_paper(
+        gradients,
+        thresholds
+    )
+
+    weighted_result = huber_aggregation(
+        gradients,
+        client_sizes,
+        thresholds
+    )
+
+    print("Paper Huber:", paper_result)
+    print("Weighted Huber:", weighted_result)
+
+    assert torch.isfinite(paper_result).all()
+    assert torch.isfinite(weighted_result).all()
+
+    assert not torch.allclose(
+        paper_result,
+        weighted_result,
+        atol=1e-4
+    )
+
+
+def test_compare_huber_weights_with_same_initial_center():
+
+    gradients = torch.tensor([
+        [2.0, 0.0],
+        [4.0, 0.0],
+        [100.0, 0.0]
+    ])
+
+    client_sizes = torch.tensor([100.0, 100.0, 800.0])
+    thresholds = torch.tensor([10.0, 10.0, 10.0])
+
+    # Same initial center for both methods
+    center = gradients.mean(dim=0)
+
+    distances = torch.linalg.vector_norm(
+        gradients - center,
+        dim=1
+    )
+
+    huber_weights = torch.minimum(
+        torch.ones_like(distances),
+        thresholds / distances.clamp_min(1e-8)
+    )
+
+    # Paper Huber: no client-size weighting
+    paper_weights = huber_weights
+
+    paper_result = (
+        gradients * paper_weights.unsqueeze(1)
+    ).sum(dim=0) / paper_weights.sum()
+
+    # Weighted Huber: client-size weighting
+    weighted_weights = client_sizes * huber_weights
+
+    weighted_result = (
+        gradients * weighted_weights.unsqueeze(1)
+    ).sum(dim=0) / weighted_weights.sum()
+
+    print("Initial center:", center)
+    print("Paper Huber (one iteration):", paper_result)
+    print("Weighted Huber (one iteration):", weighted_result)
+
+    assert torch.isfinite(paper_result).all()
+    assert torch.isfinite(weighted_result).all()
+
+    assert not torch.allclose(
+        paper_result,
+        weighted_result,
+        atol=1e-4
+    )
