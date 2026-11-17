@@ -1,49 +1,78 @@
 # Byzantine-Robust Federated Learning
 
-This repository contains an experimental implementation of federated learning methods, with a focus on robust gradient aggregation in the presence of Byzantine clients.
+An experimental PyTorch implementation of federated learning with a focus on **robust gradient aggregation** in the presence of Byzantine clients and heterogeneous (non-IID) data.
 
-The project is being developed as part of a master's thesis and aims to investigate how different aggregation strategies behave under heterogeneous data distributions and adversarial conditions.
+The project is being developed as part of a master's thesis. The main reference is *A Huber Loss Minimization Approach to Byzantine Robust Federated Learning* (Zhao, Yu, Wan, [arXiv:2308.12581](https://arxiv.org/abs/2308.12581)); the geometric median aggregator follows *Robust Aggregation for Federated Learning* (Pillutla, Kakade, Harchaoui, [arXiv:1912.13445](https://arxiv.org/abs/1912.13445)).
 
-## Overview
+## Idea
 
-In federated learning, multiple clients collaboratively train a model without sharing their local training data. Instead, clients communicate model updates or gradients to a central server, which aggregates the received information to update the global model.
+In each round every client sends a vector (here: its full local gradient) to the server. The server has to combine them into a single update. Plain (weighted) averaging is sensitive to malicious clients, so we study robust location estimators for this step.
 
-Standard aggregation methods can be sensitive to corrupted or malicious client contributions. This project explores alternative aggregation strategies designed to reduce the influence of such contributions.
+The Huber aggregator minimizes `sum_i n_i * Huber_T(||s - g_i||)` over `s`, where `g_i` is the gradient of client `i` and `n_i` its number of samples. The threshold `T` interpolates between two known aggregators:
 
-## Current Implementation
+- `T -> infinity`: the weighted mean (FedAvg-style averaging).
+- `T -> 0`: the geometric median.
 
-The current implementation includes:
+## Repository structure
 
-- A basic Federated Averaging (FedAvg) baseline.
-- IID and non-IID data partitioning across clients.
-- Client-side gradient computation and server-side gradient aggregation.
-- Arithmetic mean aggregation, weighted by client dataset size.
-- An initial implementation of geometric median aggregation using the Weiszfeld algorithm.
-- Basic numerical tests for gradient computation, aggregation, and model updates.
+```
+src/
+  data.py                  MNIST loading, IID and Dirichlet non-IID splits
+  model.py                 MLP for MNIST
+  client.py                local training (train_client) and full local gradient (compute_client_gradient)
+  aggregation.py           FedAvg over model weights
+  gradient_aggregation.py  gradient aggregators and apply_gradient
+  evaluate.py              test accuracy
+tests/                     pytest tests for gradients, aggregation, geometric median, Huber
+train.py                   FedAvg baseline (local training, weight averaging)
+train_gradients.py         gradient-based training loop (weighted mean aggregation)
+run_experiment.py          compares aggregators with and without an attack
+```
 
-The geometric median implementation is currently undergoing additional validation, particularly for numerical edge cases.
+## Aggregators (`src/gradient_aggregation.py`)
 
-## Experimental Setup
+| Function | Description |
+|---|---|
+| `gradient_mean` | Mean weighted by client dataset size |
+| `geometric_median` | Modified Weiszfeld iteration (handles gradients that coincide with the current center); unweighted |
+| `huber_aggregation` | Huber aggregation weighted by client sizes, iteratively reweighted; supports a threshold per client |
+| `huber_aggregation_paper` | Unweighted Huber update as written in Section 5 of Zhao et al. |
 
-The initial experiments use:
+## Setting
 
-- **Framework:** PyTorch
-- **Dataset:** MNIST
-- **Model:** Multilayer Perceptron (MLP)
-- **Data distribution:** IID and non-IID partitions
+`train_gradients.py` and `run_experiment.py` follow Algorithm 1 of Zhao et al.: each client computes its **full local gradient** at the current global model, the server aggregates the gradients and takes one step `w <- w - lr * g`. This is different from `train.py`, where clients train locally for several epochs and the server averages model weights.
 
-The experimental setup is intended to support comparisons between aggregation methods under different client data distributions and Byzantine attack scenarios.
+## Experiments
 
-## Planned Work
+```bash
+pip install -r requirements.txt
+pip install matplotlib      # optional, only for the plot
+python run_experiment.py
+```
 
-The next stages of development include:
+`run_experiment.py` trains with `mean`, `geometric_median` and `huber`, with and without a sign-flip attack (a fraction of clients send `-5 * gradient`), and writes `results.csv` (and `results.png` if matplotlib is installed). Settings are in the `CONFIG` dictionary at the top of the file.
 
-- Further validation of the geometric median implementation.
-- Implementation of Huber loss-based gradient aggregation.
-- Introduction of Byzantine client behaviors.
-- Comparative evaluation of aggregation methods under IID and non-IID settings.
-- Analysis of model performance and robustness under different experimental conditions.
+**Huber threshold.** The threshold is set per round as `T = huber_c * median distance of the client gradients from their coordinate-wise median`. This is a heuristic of this project, not taken from the paper; the paper uses a fixed `T` (and `T_i = T_0 + M / sqrt(n_i)` for unbalanced data).
 
-## Project Status
+### Preliminary result
 
-This project is under active development. The implementations and experimental setup may change as the research progresses.
+10 clients, Dirichlet split with alpha = 0.5, 2 Byzantine clients (about 25% of all samples), 10 rounds, one seed. Test accuracy after the last round:
+
+| | no attack | sign-flip |
+|---|---|---|
+| mean | 81.1% | 10.3% |
+| geometric median | 79.6% | 61.2% |
+| Huber (`huber_c = 1`) | 80.3% | 58.4% |
+
+This is a quick sanity check, not a conclusion: a single seed, 10 rounds, and one choice of Byzantine clients. The difference between the geometric median and Huber is within what could be noise.
+
+## Planned work
+
+- Longer runs (100+ rounds) and several seeds.
+- Sweep of the Huber threshold, from geometric-median-like to mean-like behavior.
+- More attacks and baselines (coordinate-wise median, trimmed mean, Krum).
+- Comparison under IID and non-IID data, with different fractions of Byzantine clients.
+
+## Status
+
+Under active development. Implementations and the experimental setup may change as the research progresses.
