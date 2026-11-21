@@ -19,11 +19,12 @@ def compute_client_gradient(model, dataset, batch_size=32):
         images = images.to(parameters[0].device)
         labels = labels.to(parameters[0].device)
 
-        model.zero_grad(set_to_none=True)
+        model.zero_grad(set_to_none=True)               # Reset the gradients of all model parameters to zero before computing the gradients for the current batch. The set_to_none=True argument sets the gradients to None instead of zero, which can save memory and improve performance.
 
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-        loss.backward()
+        outputs = model(images)                         # Perform a forward pass through the model to get the predicted outputs for the current batch of images
+        loss = criterion(outputs, labels)               # Compute the loss between the predicted outputs and the true labels for the current batch using the specified loss function (CrossEntropyLoss in this case)
+        loss.backward()                                 # Compute the gradients of the loss with respect to the model parameters using backpropagation. 
+                                                        # This populates the .grad attribute of each parameter tensor with the computed gradients.
 
         for total, param in zip(gradient_sums, parameters):     # Iterate over the accumulated gradients and the model parameters simultaneously
             total.add_(param.grad.detach())

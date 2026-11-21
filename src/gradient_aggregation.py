@@ -14,9 +14,12 @@ def gradient_mean(gradients, client_sizes):
     if torch.any(client_sizes <= 0):
         raise ValueError("Client sizes must be positive.")
 
+    # Convert client sizes to the same device and dtype as gradients
     weights = client_sizes.to(device=gradients.device, dtype=gradients.dtype)
 
     # Normalize client sizes to sum to 1
+    # weights: How each client's gradient contributes to the final aggregated gradient. 
+    # Clients with larger datasets have more influence on the final aggregated gradient.
     weights = weights / weights.sum()
 
     # Compute the weighted mean of the gradients
@@ -138,19 +141,25 @@ def huber_aggregation(gradients, client_sizes, thresholds, max_iter=100, tol=1e-
     if not torch.isfinite(thresholds).all() or (thresholds <= 0).any():
         raise ValueError("Thresholds must be finite and positive.")
 
+    # Initialize the center using the sample-size-weighted mean of the gradients.
     center = (gradients * client_sizes.unsqueeze(1)).sum(dim=0) / client_sizes.sum()
 
-    for iteration in range(max_iter):
+    for i in range(max_iter):
+        # Calculate the distance of each gradient from the current center.
         distances = torch.linalg.vector_norm(gradients - center, dim=1)
 
+        # Calculate the Huber weights for each gradient based on its distance from the center and the corresponding threshold.
+        # eps is used to avoid division by zero for gradients that coincide with the center.
+        # min is used to ensure that the weights do not exceed 1, which is the maximum weight for gradients within the threshold.
         safe_distances = distances.clamp_min(eps)
-
         huber_weights = torch.minimum(torch.ones_like(distances), thresholds / safe_distances)
 
+        # Final weights are the product of the client sizes and the Huber weights, which gives more influence to larger clients while still down-weighting outliers.
         weights = client_sizes * huber_weights
-
+        # Update the center using the weighted average of the gradients, where the weights are determined by both the client sizes and the Huber weights.
         new_center = (gradients * weights.unsqueeze(1)).sum(dim=0) / weights.sum()
 
+        # Check convergence: if the change in the center is less than the specified tolerance, return the new center.
         if torch.linalg.vector_norm(new_center - center) < tol:
             return new_center
 
@@ -184,9 +193,10 @@ def huber_aggregation_paper(gradients, thresholds,max_iter=100, tol=1e-6, eps=1e
         raise ValueError("max_iter, tol and eps must be positive.")
 
     # Initialize the center using the arithmetic mean.
+    # In huber_aggregation we weighted the mean by client sizes, but here we just use the simple mean as in the original paper.
     center = gradients.mean(dim=0)
 
-    for iteration in range(max_iter):
+    for i in range(max_iter):
         # Calculate the distance of each gradient from the current center.
         distances = torch.linalg.vector_norm(gradients - center, dim=1)
 

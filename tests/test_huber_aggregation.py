@@ -190,3 +190,13 @@ def test_compare_huber_weights_with_same_initial_center():
         weighted_result,
         atol=1e-4
     )
+
+def test_paper_and_weighted_huber_agree_for_equal_sizes():
+    gradients = torch.tensor([[2.0, 0.0], [4.0, 0.0], [100.0, 0.0]])
+    client_sizes = torch.tensor([100.0, 100.0, 100.0])
+    thresholds = torch.tensor([10.0, 10.0, 10.0])
+
+    paper_result = huber_aggregation_paper(gradients, thresholds)
+    weighted_result = huber_aggregation(gradients, client_sizes, thresholds)
+
+    assert torch.allclose(paper_result, weighted_result, atol=1e-4)
