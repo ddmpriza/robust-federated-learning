@@ -21,9 +21,8 @@ import time
 import numpy as np
 import torch
 
-from run_experiment import CONFIG, to_tensor_dataset, run_training
-from src.data import load_mnist, split_iid, split_non_iid
-
+from run_experiment import CONFIG, run_training
+from src.data import load_mnist, split_iid, split_non_iid, to_tensor_dataset
 
 C_VALUES = [0.5, 0.75, 1.0, 1.5, 2.0, 5.0]
 SCENARIOS = ["none", "sign_flip"]

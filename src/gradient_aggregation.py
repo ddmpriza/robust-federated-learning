@@ -79,7 +79,7 @@ def geometric_median(gradients, max_iter=100, tol=1e-8, eps=1e-8):
         r = zero_mask.sum().item()                      # Count the coinciding gradients
 
         nonzero_gradients = gradients[~zero_mask]       # Keep only gradients that do not coincide with the center
-        nonzero_distances = distances[~zero_mask]
+        nonzero_distances = distances[~zero_mask]       # Keep only distances that do not coincide with the center
 
         if nonzero_gradients.shape[0] == 0:             # If all gradients coincide with the center, return it
             return center
@@ -200,9 +200,10 @@ def huber_aggregation_paper(gradients, thresholds,max_iter=100, tol=1e-6, eps=1e
         # Calculate the distance of each gradient from the current center.
         distances = torch.linalg.vector_norm(gradients - center, dim=1)
 
-        # Calculate the Huber weights.
+        # safe distances is used to avoid division by zero for gradients that coincide with the center.
         safe_distances = distances.clamp_min(eps)
 
+        # Calculate the Huber weights for each gradient based on its distance from the center and the corresponding threshold.
         weights = torch.minimum(torch.ones_like(distances), thresholds / safe_distances)
 
         # If a gradient coincides with the center, its weight is 1.

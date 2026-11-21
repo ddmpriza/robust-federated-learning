@@ -1,5 +1,6 @@
 import numpy as np
-from torch.utils.data import Subset, random_split
+import torch
+from torch.utils.data import Subset, TensorDataset, random_split
 from torchvision import datasets, transforms
 
 # Load the MNIST training and test datasets
@@ -58,3 +59,14 @@ def get_label_distribution(client_dataset):
         distribution[label] += 1
 
     return distribution
+
+# Convert (a subset of) torchvision MNIST to in-memory tensors, so the images
+# are converted only once instead of in every round
+def to_tensor_dataset(base_dataset, subset=None):
+    if subset is None:
+        idx = torch.arange(len(base_dataset))
+    else:
+        idx = torch.as_tensor(subset.indices, dtype=torch.long)
+    x = base_dataset.data[idx].float().div(255.0).unsqueeze(1)   # [n, 1, 28, 28], same scaling as ToTensor
+    y = base_dataset.targets[idx].long()
+    return TensorDataset(x, y)

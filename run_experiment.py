@@ -17,9 +17,9 @@ import time
 
 import numpy as np
 import torch
-from torch.utils.data import TensorDataset
+from torch.linalg import vector_norm
 
-from src.data import load_mnist, split_iid, split_non_iid
+from src.data import load_mnist, split_iid, split_non_iid, to_tensor_dataset
 from src.model import MNISTModel
 from src.client import compute_client_gradient
 from src.gradient_aggregation import  gradient_mean, apply_gradient, geometric_median, huber_aggregation
@@ -45,18 +45,6 @@ METHODS = ["mean", "geometric_median", "huber"]
 SCENARIOS = ["none", "sign_flip"]   # "gaussian" is also available 
 
 
-# Convert (a subset of) torchvision MNIST to in-memory tensors (much faster than applying the transform sample by sample in every round).
-def to_tensor_dataset(base_dataset, subset=None):
-    if subset is None:
-        idx = torch.arange(len(base_dataset))
-    else:
-        idx = torch.as_tensor(subset.indices, dtype=torch.long)
-        idx = torch.as_tensor(subset.indices, dtype=torch.long)
-    x = base_dataset.data[idx].float().div(255.0).unsqueeze(1)   # [n, 1, 28, 28], same scaling as ToTensor
-    y = base_dataset.targets[idx].long()
-    return TensorDataset(x, y)
-
-
 def apply_attack(gradients, byzantine_ids, attack, scale):
     attacked = gradients.clone()
     if attack == "none" or len(byzantine_ids) == 0:
@@ -76,9 +64,9 @@ def apply_attack(gradients, byzantine_ids, attack, scale):
 # T = c * median distance of the client gradients from their coordinate-wise median.
 # A fixed T is hard to choose because gradient norms change during training.
 def robust_threshold(gradients, c):
-    center = gradients.median(dim=0).values
-    distances = torch.linalg.vector_norm(gradients - center, dim=1)
-    return max((c * distances.median()).item(), 1e-8)
+    center = gradients.median(dim=0).values                             # gradients.median(dim=0) calculates the median of each column separately
+    distances = torch.linalg.vector_norm(gradients - center, dim=1)     # vector_norm(gradients - center, dim=1) gives the distance of each client from the center
+    return max((c * distances.median()).item(), 1e-8)                   # The max is used to avoid a threshold of 0, which would cause division by zero in huber_aggregation
 
 # Returns (aggregated_gradient, huber_threshold_or_None).
 def aggregate(method, gradients, client_sizes, cfg):
@@ -93,18 +81,22 @@ def aggregate(method, gradients, client_sizes, cfg):
 
 
 def run_training(method, attack, cfg, client_datasets, client_sizes, test_dataset, byzantine_ids):
-    torch.manual_seed(cfg["seed"])          # every run starts from the same initial model
+    torch.manual_seed(cfg["seed"])              # every run starts from the same initial model
     model = MNISTModel()
     sizes = torch.tensor(client_sizes)
     history = []
 
     for round_id in range(cfg["num_rounds"]):
+        # Compute gradients for all clients (full-batch)
         gradients = torch.stack([
             compute_client_gradient(model, dataset, batch_size=cfg["grad_batch_size"])
             for dataset in client_datasets
-        ])
+        ])   # it gives a [num_clients, num_params] tensor [10, 199210] for MNISTModel
+
+        # Apply the attack to the gradients of Byzantine clients, if any.
         gradients = apply_attack(gradients, byzantine_ids, attack, cfg["attack_scale"])
 
+        # Aggregate the gradients and update the global model.
         aggregated, threshold = aggregate(method, gradients, sizes, cfg)
         model = apply_gradient(model, aggregated, cfg["learning_rate"])
 
@@ -170,6 +162,7 @@ def main():
     else:
         subsets = split_iid(train_dataset, num_clients=cfg["num_clients"])
 
+    # `to_tensor_dataset` takes the indices and creates an array of images and an array of labels
     client_datasets = [to_tensor_dataset(train_dataset, s) for s in subsets]
     client_sizes = [len(d) for d in client_datasets]
     test_dataset = to_tensor_dataset(test_dataset_raw)
@@ -179,6 +172,7 @@ def main():
         counts = torch.bincount(dataset.tensors[1], minlength=10).tolist()
         print(f"  Client {client_id + 1}: {len(dataset)} samples - {counts}")
 
+    # Choose randomly clients to be Byzantine (the same for all methods and scenarios, for comparability)
     byzantine_ids = random.Random(cfg["seed"]).sample(range(cfg["num_clients"]), cfg["num_byzantine"])
     print(f"\nByzantine clients (used only in attack scenarios): {sorted(i + 1 for i in byzantine_ids)}")
 
