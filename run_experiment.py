@@ -22,7 +22,7 @@ from torch.linalg import vector_norm
 from src.data import load_mnist, split_iid, split_non_iid, to_tensor_dataset
 from src.model import MNISTModel
 from src.client import compute_client_gradient
-from src.gradient_aggregation import  gradient_mean, apply_gradient, geometric_median, huber_aggregation
+from src.gradient_aggregation import  gradient_mean, apply_gradient, geometric_median, huber_aggregation, huber_aggregation_paper
 from src.evaluate import evaluate
 
 
@@ -77,6 +77,9 @@ def aggregate(method, gradients, client_sizes, cfg):
     if method == "huber":
         threshold = robust_threshold(gradients, cfg["huber_c"])
         return huber_aggregation(gradients, client_sizes, thresholds=threshold), threshold
+    if method == "huber_unweighted":
+        threshold = robust_threshold(gradients, cfg["huber_c"])
+        return huber_aggregation_paper(gradients, thresholds=threshold), threshold
     raise ValueError(f"Unknown aggregation method: {method}")
 
 

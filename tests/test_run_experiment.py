@@ -88,10 +88,6 @@ def test_threshold_is_not_dominated_by_one_extreme_client():
 
     assert robust_threshold(with_outlier, 1.0) < 1.0
 
-
-# ----------------------------------------------------------------------------
-# aggregate
-# ----------------------------------------------------------------------------
 def test_mean_matches_gradient_mean():
     gradients = make_gradients()
     sizes = torch.tensor([1, 2, 3, 4])
@@ -138,3 +134,11 @@ def test_robust_aggregators_resist_an_outlier_better_than_mean(method):
 def test_unknown_method_raises():
     with pytest.raises(ValueError):
         aggregate("unknown_method", make_gradients(), torch.ones(4), {"huber_c": 1.0})
+
+def test_unweighted_huber_ignores_client_sizes():
+    gradients = make_gradients()
+
+    result_a, _ = aggregate("huber_unweighted", gradients, torch.tensor([1, 1, 1, 1]), {"huber_c": 1.0})
+    result_b, _ = aggregate("huber_unweighted", gradients, torch.tensor([1, 5, 20, 100]), {"huber_c": 1.0})
+
+    assert torch.allclose(result_a, result_b)

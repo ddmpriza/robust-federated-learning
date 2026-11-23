@@ -71,9 +71,12 @@ def save_plot(results, path="huber_sweep.png"):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--rounds", type=int, default=50, help="training rounds per run")
-    args = parser.parse_args()
+    parser = argparse.ArgumentParser()                                                          # Command-line argument parser
+    parser.add_argument("--rounds", type=int, default=50, help="training rounds per run")       # Add an argument for the number of training rounds per run, with a default value of 50
+    parser.add_argument("--unweighted", action="store_true", help="Huber without client-size weights")
+    args = parser.parse_args()                                                                  # Parse the command-line arguments and store them in the `args` variable
+    huber_method = "huber_unweighted" if args.unweighted else "huber"
+    suffix = "_unweighted" if args.unweighted else ""                                                               
 
     cfg = dict(CONFIG)
     cfg["num_rounds"] = args.rounds
@@ -101,8 +104,8 @@ def main():
 
     for scenario in SCENARIOS:
         runs = [(method, method, cfg) for method in REFERENCE_METHODS]
-        runs += [("huber", f"huber_c={c}", dict(cfg, huber_c=c)) for c in C_VALUES]
-
+        runs += [(huber_method, f"huber_c={c}", dict(cfg, huber_c=c)) for c in C_VALUES]
+        
         for method, label, run_cfg in runs:
             run_number += 1
             print(f"\n=== [{run_number}/{total_runs}] attack: {scenario} | {label} ===")
@@ -118,8 +121,8 @@ def main():
         for label in REFERENCE_METHODS + [f"huber_c={c}" for c in C_VALUES]:
             print(f"    {label:<18} {results[(scenario, label)][-1] * 100:6.2f}%")
 
-    save_csv(results)
-    save_plot(results)
+    save_csv(results, f"huber_sweep{suffix}.csv")
+    save_plot(results, f"huber_sweep{suffix}.png")
 
 
 if __name__ == "__main__":
