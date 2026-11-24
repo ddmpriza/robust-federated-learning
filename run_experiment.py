@@ -30,7 +30,7 @@ from src.evaluate import evaluate
 CONFIG = dict(
     seed=42,
     num_clients=10,
-    num_rounds=10,                  # the paper uses 200-500 iterations
+    num_rounds=50,                  # the paper uses 200-500 iterations
     learning_rate=0.5,
     data_distribution="non_iid",    # "iid" or "non_iid"
     dirichlet_alpha=0.5,
@@ -41,7 +41,7 @@ CONFIG = dict(
     huber_c=1.0                    # Huber threshold T = huber_c * median distance (see robust_threshold)
 )
 
-METHODS = ["mean", "geometric_median", "huber"]
+METHODS = ["mean", "huber", "geometric_median", "geometric_median_weighted"]
 SCENARIOS = ["none", "sign_flip"]   # "gaussian" is also available 
 
 
@@ -80,6 +80,8 @@ def aggregate(method, gradients, client_sizes, cfg):
     if method == "huber_unweighted":
         threshold = robust_threshold(gradients, cfg["huber_c"])
         return huber_aggregation_paper(gradients, thresholds=threshold), threshold
+    if method == "geometric_median_weighted":
+        return huber_aggregation(gradients, client_sizes, thresholds=1e-6), None
     raise ValueError(f"Unknown aggregation method: {method}")
 
 
