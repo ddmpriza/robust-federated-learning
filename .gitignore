@@ -12,3 +12,6 @@ data/
 # Results
 *.csv
 *.png
+seed_*.txt
+small_*.txt
+sweep_*.txt

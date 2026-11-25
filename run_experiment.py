@@ -38,11 +38,15 @@ CONFIG = dict(
     eval_batch_size=2000,
     num_byzantine=2,                # epsilon = 2/10 = 0.2
     attack_scale=5.0,               # sign_flip sends  -scale * gradient
-    huber_c=1.0                    # Huber threshold T = huber_c * median distance (see robust_threshold)
-)
+    huber_c=1.0,                    # Huber threshold T = huber_c * median distance (see robust_threshold)
+    byzantine_clients=[3, 8]        # e.g. [3, 8] (numbered from 1); None = random choice from the seed
+    )
 
-METHODS = ["mean", "huber", "geometric_median", "geometric_median_weighted"]
-SCENARIOS = ["none", "sign_flip"]   # "gaussian" is also available 
+
+METHODS = ["geometric_median", "geometric_median_weighted", "huber"]        # ["mean", "huber", "geometric_median", "geometric_median_weighted"]
+
+SCENARIOS = [ "sign_flip"]  # "gaussian" is also available 
+                            #  sign_flip: Byzantine clients send -scale * gradient
 
 
 def apply_attack(gradients, byzantine_ids, attack, scale):
@@ -178,7 +182,10 @@ def main():
         print(f"  Client {client_id + 1}: {len(dataset)} samples - {counts}")
 
     # Choose randomly clients to be Byzantine (the same for all methods and scenarios, for comparability)
-    byzantine_ids = random.Random(cfg["seed"]).sample(range(cfg["num_clients"]), cfg["num_byzantine"])
+    if cfg["byzantine_clients"] is None:
+        byzantine_ids = random.Random(cfg["seed"]).sample(range(cfg["num_clients"]), cfg["num_byzantine"])
+    else:
+        byzantine_ids = [i - 1 for i in cfg["byzantine_clients"]]
     print(f"\nByzantine clients (used only in attack scenarios): {sorted(i + 1 for i in byzantine_ids)}")
 
     results = {}
